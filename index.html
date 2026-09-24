@@ -6,7 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <title>⚔️ GROUP CHUKY HOOD ⚔️ BY MLPLA</title>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
@@ -337,30 +336,6 @@ body {
   .channels-list { grid-template-columns: repeat(5, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-
-.player-wrap video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000;
-  z-index: 1;
-}
-.player-status {
-  position: absolute;
-  left: 8px; right: 8px; bottom: 8px;
-  z-index: 4;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(0,0,0,0.75);
-  color: #ffb4c8;
-  font-size: 0.75rem;
-  text-align: center;
-  pointer-events: none;
-}
-.player-status.info { color: var(--cyan); }
-
 </style>
 </head>
 <body>
@@ -374,15 +349,17 @@ body {
   <div class="main">
     <section class="player-pane">
       <div class="player-wrap">
-        <video id="main-player" controls playsinline webkit-playsinline></video>
+        <iframe id="main-player"
+          src="https://daddylive-resolver.onrender.com/api/live?channel=529&server=cast"
+          allowfullscreen allow="autoplay; encrypted-media; fullscreen"
+          referrerpolicy="no-referrer" loading="eager"></iframe>
         <button type="button" class="play-overlay" id="play-overlay" aria-label="Reproducir">
           <span class="play-icon">▶</span>
           <span class="play-text">Toca para reproducir</span>
         </button>
-        <div class="player-status" id="player-status" hidden></div>
       </div>
       <div class="controls">
-        <span class="server-info">Servidor: <strong id="server-name">cast</strong> (<span id="server-count">1</span>/<span id="server-total">4</span>)</span>
+        <span class="server-info">Servidor: <strong id="server-name">cast</strong> (<span id="server-count">1</span>/4)</span>
         <button type="button" class="btn-server" onclick="nextServer()">🔄 Servidor</button>
       </div>
     </section>
@@ -1338,203 +1315,55 @@ body {
   </footer>
 </div>
 
-
 <script>
 (function () {
   var DEFAULT_ID = '529';
   var currentChannelId = DEFAULT_ID;
-  var servers = ['cast', 'stream', 'player', 'plus', 'casting'];
+  var servers = ['cast', 'stream', 'player', 'casting', 'plus'];
   var serverIndex = 0;
   var activeCountry = 'ALL';
-  var hls = null;
-  var resolveUrl = 'https://daddylive-resolver.onrender.com/api/resolve';
-  var autoAdvance = true; // si un server falla, prueba el siguiente
 
-  var video = document.getElementById('main-player');
+  var player = document.getElementById('main-player');
   var titleEl = document.getElementById('header-title');
   var serverNameEl = document.getElementById('server-name');
   var serverCountEl = document.getElementById('server-count');
-  var serverTotalEl = document.getElementById('server-total');
   var searchInput = document.getElementById('search-input');
   var list = document.getElementById('channels-list');
   var overlay = document.getElementById('play-overlay');
   var btnHome = document.getElementById('btn-home');
   var filtersEl = document.getElementById('country-filters');
-  var statusEl = document.getElementById('player-status');
 
-  function setStatus(msg, isInfo) {
-    if (!statusEl) return;
-    if (!msg) {
-      statusEl.hidden = true;
-      statusEl.textContent = '';
-      return;
-    }
-    statusEl.hidden = false;
-    statusEl.textContent = msg;
-    statusEl.classList.toggle('info', !!isInfo);
-  }
-
-  function destroyHls() {
-    if (hls) {
-      try { hls.destroy(); } catch (e) {}
-      hls = null;
-    }
-    try {
-      video.removeAttribute('src');
-      video.load();
-    } catch (e) {}
-  }
-
-  function playUrl(url, isHls) {
-    destroyHls();
-    var useHls = isHls !== false && (url.indexOf('.m3u8') !== -1 || isHls === true);
-
-    if (useHls && window.Hls && Hls.isSupported()) {
-      hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 30
-      });
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        setStatus('');
-        var p = video.play();
-        if (p && p.catch) p.catch(function () {});
-      });
-      hls.on(Hls.Events.ERROR, function (event, data) {
-        if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          setStatus('Error de red, reintentando…', true);
-          hls.startLoad();
-        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          setStatus('Error de media, recuperando…', true);
-          hls.recoverMediaError();
-        } else {
-          setStatus('Error de reproducción');
-          if (autoAdvance) tryNextServer();
-        }
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl') || !useHls) {
-      // Safari native HLS or progressive
-      video.src = url;
-      var p = video.play();
-      if (p && p.catch) p.catch(function () {});
-      setStatus('');
-    } else {
-      setStatus('Este dispositivo no soporta HLS');
-    }
-  }
-
-  function updateServerLabel() {
-    serverNameEl.textContent = servers[serverIndex];
-    if (serverCountEl) serverCountEl.textContent = String(serverIndex + 1);
-    if (serverTotalEl) serverTotalEl.textContent = String(servers.length);
-  }
-
-  function resolveAndPlay(fromUser) {
+  function updatePlayer() {
     var server = servers[serverIndex];
-    updateServerLabel();
-    setStatus('Resolviendo ' + server + '…', true);
-    destroyHls();
-
-    var url = resolveUrl + '?channel=' + encodeURIComponent(currentChannelId) +
-      '&server=' + encodeURIComponent(server);
-
-    fetch(url, { method: 'GET', mode: 'cors' })
-      .then(function (res) {
-        return res.json().then(function (data) {
-          return { ok: res.ok, status: res.status, data: data };
-        }).catch(function () {
-          return { ok: false, status: res.status, data: { error: 'Respuesta inválida' } };
-        });
-      })
-      .then(function (result) {
-        if (!result.ok || result.data.error) {
-          var err = (result.data && result.data.error) ? result.data.error : ('HTTP ' + result.status);
-          setStatus(server + ': ' + err);
-          if (autoAdvance && fromUser !== 'stop') tryNextServer();
-          return;
-        }
-        // Prefer stable live URL (proxy), fallback to direct
-        var playable = result.data.live || result.data.direct;
-        if (!playable) {
-          setStatus(server + ': sin URL reproducible');
-          if (autoAdvance) tryNextServer();
-          return;
-        }
-        var isHls = result.data.isHls !== false;
-        playUrl(playable, isHls);
-        if (overlay) overlay.classList.add('hidden');
-      })
-      .catch(function (e) {
-        setStatus('Error de red: ' + (e && e.message ? e.message : 'fetch failed'));
-        if (autoAdvance) tryNextServer();
-      });
+    player.src = 'https://daddylive-resolver.onrender.com/api/live?channel=' + currentChannelId +
+      '&server=' + server + '&_=' + Date.now();
+    serverNameEl.textContent = server;
+    serverCountEl.textContent = String(serverIndex + 1);
   }
-
-  var failCount = 0;
-  var advancing = false;
-  function tryNextServer() {
-    if (advancing) return;
-    failCount += 1;
-    if (failCount >= servers.length) {
-      setStatus('Ningún servidor disponible para este canal');
-      return;
-    }
-    advancing = true;
-    serverIndex = (serverIndex + 1) % servers.length;
-    setTimeout(function () {
-      advancing = false;
-      resolveAndPlay();
-    }, 350);
-  }
+  function hideOverlay() { if (overlay) overlay.classList.add('hidden'); }
 
   window.loadChannel = function (id, name) {
-    currentChannelId = id;
-    serverIndex = 0;
-    failCount = 0;
-    titleEl.textContent = name;
-    if (overlay) overlay.classList.add('hidden');
-    resolveAndPlay(true);
+    currentChannelId = id; serverIndex = 0;
+    titleEl.textContent = name; hideOverlay(); updatePlayer();
   };
-
   window.nextServer = function () {
     serverIndex = (serverIndex + 1) % servers.length;
-    failCount = 0;
-    if (overlay) overlay.classList.add('hidden');
-    resolveAndPlay(true);
+    hideOverlay(); updatePlayer();
   };
-
   window.goHome = function () {
-    currentChannelId = DEFAULT_ID;
-    serverIndex = 0;
-    failCount = 0;
+    currentChannelId = DEFAULT_ID; serverIndex = 0;
     titleEl.textContent = '⚔️ Group Chuky Hood ⚔️ By MLPLA';
-    if (searchInput) searchInput.value = '';
-    activeCountry = 'ALL';
-    if (filtersEl) {
-      filtersEl.querySelectorAll('.chip').forEach(function (c) {
-        c.classList.toggle('active', c.getAttribute('data-country') === 'ALL');
-      });
-    }
+    searchInput.value = ''; activeCountry = 'ALL';
+    if (filtersEl) filtersEl.querySelectorAll('.chip').forEach(function (c) {
+      c.classList.toggle('active', c.getAttribute('data-country') === 'ALL');
+    });
     applyFilters();
     var sc = document.getElementById('channels-scroll');
     if (sc) sc.scrollTop = 0;
-    if (overlay) overlay.classList.remove('hidden');
-    destroyHls();
-    setStatus('');
-    updateServerLabel();
+    hideOverlay(); updatePlayer();
   };
-
   if (btnHome) btnHome.addEventListener('click', window.goHome);
-
-  if (overlay) {
-    overlay.addEventListener('click', function () {
-      overlay.classList.add('hidden');
-      resolveAndPlay(true);
-    });
-  }
+  if (overlay) overlay.addEventListener('click', function () { hideOverlay(); updatePlayer(); });
 
   function applyFilters() {
     var q = (searchInput.value || '').toLowerCase().trim();
@@ -1545,75 +1374,57 @@ body {
       if (ok) item.removeAttribute('hidden'); else item.setAttribute('hidden', '');
     });
   }
-  if (searchInput) {
-    searchInput.addEventListener('input', applyFilters);
-    searchInput.addEventListener('keyup', applyFilters);
-  }
+  searchInput.addEventListener('input', applyFilters);
+  searchInput.addEventListener('keyup', applyFilters);
 
-  if (filtersEl) {
-    filtersEl.addEventListener('click', function (e) {
-      var chip = e.target.closest('.chip');
-      if (!chip) return;
-      activeCountry = chip.getAttribute('data-country') || 'ALL';
-      filtersEl.querySelectorAll('.chip').forEach(function (c) {
-        c.classList.toggle('active', c === chip);
-      });
-      applyFilters();
-      var sc = document.getElementById('channels-scroll');
-      if (sc) sc.scrollTop = 0;
-    });
-  }
+  if (filtersEl) filtersEl.addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) return;
+    activeCountry = chip.getAttribute('data-country') || 'ALL';
+    filtersEl.querySelectorAll('.chip').forEach(function (c) { c.classList.toggle('active', c === chip); });
+    applyFilters();
+    var sc = document.getElementById('channels-scroll');
+    if (sc) sc.scrollTop = 0;
+  });
 
-  if (list) {
-    list.addEventListener('click', function (e) {
+  list.addEventListener('click', function (e) {
+    var card = e.target.closest('.channel-item');
+    if (!card || card.hasAttribute('hidden')) return;
+    if (e.target.classList.contains('btn-canal')) return;
+    var btn = card.querySelector('.btn-canal');
+    if (btn) btn.click();
+  });
+  list.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
       var card = e.target.closest('.channel-item');
       if (!card || card.hasAttribute('hidden')) return;
-      if (e.target.classList.contains('btn-canal')) return;
+      e.preventDefault();
       var btn = card.querySelector('.btn-canal');
       if (btn) btn.click();
+      return;
+    }
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) === -1) return;
+    var items = Array.prototype.slice.call(list.querySelectorAll('.channel-item')).filter(function (el) {
+      return !el.hasAttribute('hidden');
     });
-    list.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        var card = e.target.closest('.channel-item');
-        if (!card || card.hasAttribute('hidden')) return;
-        e.preventDefault();
-        var btn = card.querySelector('.btn-canal');
-        if (btn) btn.click();
-        return;
-      }
-      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) === -1) return;
-      var items = Array.prototype.slice.call(list.querySelectorAll('.channel-item')).filter(function (el) {
-        return !el.hasAttribute('hidden');
-      });
-      var current = document.activeElement.closest && document.activeElement.closest('.channel-item');
-      if (!current) return;
-      var idx = items.indexOf(current);
-      if (idx < 0) return;
-      var cols = Math.max(1, (getComputedStyle(list).gridTemplateColumns || '').split(' ').filter(Boolean).length);
-      var next = idx;
-      if (e.key === 'ArrowRight') next = Math.min(items.length - 1, idx + 1);
-      if (e.key === 'ArrowLeft') next = Math.max(0, idx - 1);
-      if (e.key === 'ArrowDown') next = Math.min(items.length - 1, idx + cols);
-      if (e.key === 'ArrowUp') next = Math.max(0, idx - cols);
-      if (next !== idx) {
-        e.preventDefault();
-        items[next].focus();
-        items[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    });
-  }
-
-  updateServerLabel();
+    var current = document.activeElement.closest && document.activeElement.closest('.channel-item');
+    if (!current) return;
+    var idx = items.indexOf(current); if (idx < 0) return;
+    var cols = Math.max(1, (getComputedStyle(list).gridTemplateColumns || '').split(' ').filter(Boolean).length);
+    var next = idx;
+    if (e.key === 'ArrowRight') next = Math.min(items.length - 1, idx + 1);
+    if (e.key === 'ArrowLeft') next = Math.max(0, idx - 1);
+    if (e.key === 'ArrowDown') next = Math.min(items.length - 1, idx + cols);
+    if (e.key === 'ArrowUp') next = Math.max(0, idx - cols);
+    if (next !== idx) { e.preventDefault(); items[next].focus(); items[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  });
 
   var origOpen = window.open;
   window.open = function (url) {
-    if (typeof url === 'string' && (url.indexOf('ad') !== -1 || url.indexOf('popup') !== -1 || url.indexOf('doubleclick') !== -1 || url.indexOf('ads') !== -1 || url.indexOf('https://') !== 0)) {
-      return null;
-    }
+    if (typeof url === 'string' && (url.indexOf('ad') !== -1 || url.indexOf('popup') !== -1 || url.indexOf('doubleclick') !== -1 || url.indexOf('ads') !== -1 || url.indexOf('https://') !== 0)) return null;
     return origOpen.apply(this, arguments);
   };
 })();
 </script>
-
 </body>
 </html>
