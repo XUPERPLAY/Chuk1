@@ -359,7 +359,7 @@ body {
         </button>
       </div>
       <div class="controls">
-        <span class="server-info">Servidor: <strong id="server-name">cast</strong> (<span id="server-count">1</span>/<span id="server-total">4</span>)</span>
+        <span class="server-info">Servidor: <strong id="server-name">cast</strong> (<span id="server-count">1</span>/4)</span>
         <button type="button" class="btn-server" onclick="nextServer()">🔄 Servidor</button>
       </div>
     </section>
@@ -1319,7 +1319,7 @@ body {
 (function () {
   var DEFAULT_ID = '529';
   var currentChannelId = DEFAULT_ID;
-  var servers = ['cast', 'stream', 'player', 'plus', 'casting'];
+  var servers = ['player', 'cast', 'stream', 'casting'];
   var serverIndex = 0;
   var activeCountry = 'ALL';
 
@@ -1327,7 +1327,6 @@ body {
   var titleEl = document.getElementById('header-title');
   var serverNameEl = document.getElementById('server-name');
   var serverCountEl = document.getElementById('server-count');
-  var serverTotalEl = document.getElementById('server-total');
   var searchInput = document.getElementById('search-input');
   var list = document.getElementById('channels-list');
   var overlay = document.getElementById('play-overlay');
@@ -1340,7 +1339,6 @@ body {
       '&server=' + server + '&_=' + Date.now();
     serverNameEl.textContent = server;
     serverCountEl.textContent = String(serverIndex + 1);
-    if (serverTotalEl) serverTotalEl.textContent = String(servers.length);
   }
   function hideOverlay() { if (overlay) overlay.classList.add('hidden'); }
 
@@ -1420,8 +1418,6 @@ body {
     if (e.key === 'ArrowUp') next = Math.max(0, idx - cols);
     if (next !== idx) { e.preventDefault(); items[next].focus(); items[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
   });
-
-  if (serverTotalEl) serverTotalEl.textContent = String(servers.length);
 
   var origOpen = window.open;
   window.open = function (url) {
