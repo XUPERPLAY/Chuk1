@@ -1335,7 +1335,7 @@ body {
 
   function updatePlayer() {
     var server = servers[serverIndex];
-    player.src = 'https://daddylive-resolver.onrender.com/api/live?channel=' + currentChannelId +
+    player.src = 'https://daddylive-resolver.xuperlist2-0.workers.dev/api/live?channel=' + currentChannelId +
       '&server=' + server + '&_=' + Date.now();
     serverNameEl.textContent = server;
     serverCountEl.textContent = String(serverIndex + 1);
